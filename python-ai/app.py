@@ -1,41 +1,57 @@
+# app.py – updated for SHAP + GradCAM
 import os
-import random
-from PIL import Image, ImageDraw, ImageFont
-import numpy as np
+import uuid
+from flask import Flask, request, jsonify, send_from_directory
+from analyze import analyze_document
 
-UPLOAD_DIR = "uploads"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def analyze_document(image_path: str):
-    """
-    Placeholder analysis function.
-    Replace with: load model, run inference, compute Grad-CAM & SHAP outputs.
-    Returns:
-      - tampering_score (float)
-      - gradcam_path (str) (a image path to overlay)
-      - shap_summary (dict)
-    """
-    # Simulated score
-    tampering_score = round(random.uniform(0.0, 1.0), 3)
+app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 
-    # Create a fake Grad-CAM heatmap image for demo
-    base = Image.open(image_path).convert("RGBA")
-    w, h = base.size
-    heatmap = Image.new("RGBA", base.size, (255,0,0,80))  # translucent red overlay
-    # draw a fake hotspot rectangle (simulate tampered region)
-    draw = ImageDraw.Draw(heatmap)
-    rect = (int(w*0.2), int(h*0.1), int(w*0.65), int(h*0.35))
-    draw.rectangle(rect, outline=(255,255,0,200), width=6)
-    combined = Image.alpha_composite(base, heatmap)
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    gradcam_path = os.path.join(UPLOAD_DIR, f"gradcam_{os.path.basename(image_path)}")
-    combined.save(gradcam_path)
+        f = request.files["file"]
+        if f.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
 
-    # Fake SHAP summary
-    shap_summary = {
-        "text_anomaly": round(random.uniform(0, 0.5), 3),
-        "logo_edit": round(random.uniform(0, 0.5), 3),
-        "photo_morph": round(random.uniform(0, 0.5), 3),
-    }
+        # save uploaded file
+        ext = os.path.splitext(f.filename)[1].lower()
+        filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        f.save(filepath)
 
-    return tampering_score, gradcam_path, shap_summary
+        # run full AI + XAI analysis
+        result = analyze_document(filepath)
+
+        # build public URLs
+        gradcam_url = f"/outputs/{result['gradcam']}"
+        shap_url = f"/outputs/{result['shap']}"
+
+        return jsonify({
+            "tampering_score": result["tampering_score"],
+            "label": result["label"],
+            "gradcam_url": gradcam_url,
+            "shap_url": shap_url
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/outputs/<path:filename>")
+def outputs(filename):
+    return send_from_directory(OUTPUT_DIR, filename)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

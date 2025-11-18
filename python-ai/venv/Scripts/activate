@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Sakthi\MSc In AI\Semester III\Applied Research Project\Projects\tfi-xai-prototype\python-ai\venv"
+VIRTUAL_ENV="C:\Sakthi\Project\tfi-xai-prototype\python-ai\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
